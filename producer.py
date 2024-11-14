@@ -108,7 +108,8 @@ def send_batch(producer, batch, encoder):
         producer.produce(
             employee_topic_name,
             key=encoder(emp.emp_dept),
-            value=encoder(emp.to_json())
+            value=encoder(emp.to_json()),
+            callback=delivery_report
         )
     producer.poll(0)
 
@@ -144,6 +145,21 @@ if __name__ == '__main__':
     producer = salaryProducer()
     employees = handler.get_filtered_employees()
     
-    print("Testing different batch sizes for message sizes:")
-    test_batch_sizes(producer, employees, encoder)
+    # print("Testing different batch sizes for message sizes:")
+    # test_batch_sizes(producer, employees, encoder)
+    optimal_batch_size = 200  # Replace with the batch size you find optimal
     
+    batch = []
+    for idx, emp_data in enumerate(employees, 1):
+        batch.append(emp_data)
+        if idx % optimal_batch_size == 0:
+            send_batch(producer, batch, encoder)
+            batch = []
+    
+    # Send remaining records
+    if batch:
+        send_batch(producer, batch, encoder)
+    
+    producer.flush()
+
+    print("All messages have been sent.")
