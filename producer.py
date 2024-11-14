@@ -37,6 +37,9 @@ from confluent_kafka.serialization import StringSerializer
 
 employee_topic_name = "bf_employee_salary"
 csv_file = 'Employee_Salaries.csv'
+filtered_departments = {'ECC', 'CIT', 'EMS'}
+# You can adjust the batch_size_list for different testing scenarios
+batch_size_list = [10, 50, 100, 200, 500]
 
 #Can use the confluent_kafka.Producer class directly
 class salaryProducer(Producer):
@@ -51,11 +54,20 @@ class salaryProducer(Producer):
      
 
 class DataHandler:
-    '''
-    Your data handling logic goes here. 
-    You can also implement the same logic elsewhere. Your call
-    '''
-    pass
+    def __init__(self, file_path):
+        self.file_path = file_path
+
+    def get_filtered_employees(self):
+        df = pd.read_csv(self.file_path, header=None)
+        df.columns = ['Department', 'Division', 'Code', 'Position_Title', 'Status', 'Hire_Date', 'End_Date', 'Salary']
+        # Filter departments
+        df = df[df['Department'].isin(filtered_departments)]
+        # Filter hire_date after 2010-01-01
+        df['Hire_Date'] = pd.to_datetime(df['Hire_Date'], format='%d-%b-%Y')
+        df = df[df['Hire_Date'] > pd.Timestamp('2010-01-01')]
+        # Round down salary
+        df['Salary'] = df['Salary'].apply(lambda x: int(float(x)))
+        return df.to_dict(orient='records')
 
 if __name__ == '__main__':
     encoder = StringSerializer('utf-8')
