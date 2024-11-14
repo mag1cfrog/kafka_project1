@@ -69,18 +69,63 @@ class DataHandler:
         df['Salary'] = df['Salary'].apply(lambda x: int(float(x)))
         return df.to_dict(orient='records')
 
+
+def calculate_message_size(batch, encoder):
+    """
+    Serializes the batch and returns its size in bytes.
+    """
+    serialized_batch = encoder(json.dumps(batch))
+    return len(serialized_batch)
+
+
+def send_batch(producer, batch, encoder):
+    for emp_data in batch:
+        emp = Employee(
+            emp_dept=emp_data['Department'],
+            emp_division=emp_data['Division'],
+            emp_position=emp_data['Position_Title'],
+            emp_hire_date=emp_data['Hire_Date'].strftime('%Y-%m-%d'),
+            emp_salary=emp_data['Salary']
+        )
+        producer.produce(
+            employee_topic_name,
+            key=encoder(emp.emp_dept),
+            value=encoder(emp.to_json())
+        )
+    producer.poll(0)
+
+
+def test_batch_sizes(producer, employees, encoder):
+    """
+    Iterates through different batch sizes and prints the corresponding message sizes.
+    """
+    for batch_size in batch_size_list:
+        total_size = 0
+        num_batches = 0
+        batch = []
+        for idx, emp_data in enumerate(employees, 1):
+            batch.append(emp_data)
+            if idx % batch_size == 0:
+                message_size = calculate_message_size(batch, encoder)
+                total_size += message_size
+                num_batches += 1
+                batch = []
+        # Handle remaining records
+        if batch:
+            message_size = calculate_message_size(batch, encoder)
+            total_size += message_size
+            num_batches += 1
+        average_size = total_size / num_batches if num_batches else 0
+        print(f"Batch Size: {batch_size} | Number of Batches: {num_batches} | Average Message Size: {average_size / 1024:.2f} KB")
+
+
+
 if __name__ == '__main__':
     encoder = StringSerializer('utf-8')
-    reader = DataHandler()
+    handler = DataHandler(csv_file)
     producer = salaryProducer()
-    '''
-    # implement other instances as needed
-    # you can let producer process line by line, and stop after all lines are processed, or you can keep the producer running.
-    # finish code with your own logic and reasoning
-
-    for line in lines:
-        emp = Employee.from_csv_line(line)
-        producer.produce(employee_topic_name, key=encoder(emp.emp_dept), value=encoder(emp.to_json()))
-        producer.poll(1)
-    '''
+    employees = handler.get_filtered_employees()
+    
+    print("Testing different batch sizes for message sizes:")
+    test_batch_sizes(producer, employees, encoder)
     
