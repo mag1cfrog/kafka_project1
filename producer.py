@@ -61,6 +61,14 @@ class salaryProducer(Producer):
         super().__init__(producerConfig)
      
 
+def delivery_report(err, msg):
+    """ Called once for each message produced to indicate delivery result. Triggered by poll() or flush(). """
+    if err is not None:
+        print(f"Delivery failed for Message: {msg.value()} - Error: {err}")
+    else:
+        pass  # Message delivered successfully
+    
+    
 class DataHandler:
     def __init__(self, file_path):
         self.file_path = file_path
