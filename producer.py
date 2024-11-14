@@ -48,8 +48,16 @@ class salaryProducer(Producer):
     def __init__(self, host="localhost", port="29092"):
         self.host = host
         self.port = port
-        producerConfig = {'bootstrap.servers':f"{self.host}:{self.port}",
-                          'acks' : 'all'}
+        producerConfig = {
+            'bootstrap.servers': f"{host}:{port}",
+            'acks': 'all',
+            # Adjust batch.size (default is 16384 bytes)
+            'batch.size': 32768,  # 32 KB
+            # Adjust linger.ms (default is 0)
+            'linger.ms': 100,  # Wait up to 100 ms for more messages
+            # Enable compression
+            'compression.type': 'gzip',
+        }
         super().__init__(producerConfig)
      
 
@@ -67,6 +75,8 @@ class DataHandler:
         df = df[df['Hire_Date'] > pd.Timestamp('2010-01-01')]
         # Round down salary
         df['Salary'] = df['Salary'].apply(lambda x: int(float(x)))
+        # Convert 'Hire_Date' to string to ensure JSON serializability
+        df['Hire_Date'] = df['Hire_Date'].dt.strftime('%Y-%m-%d')
         return df.to_dict(orient='records')
 
 
@@ -84,7 +94,7 @@ def send_batch(producer, batch, encoder):
             emp_dept=emp_data['Department'],
             emp_division=emp_data['Division'],
             emp_position=emp_data['Position_Title'],
-            emp_hire_date=emp_data['Hire_Date'].strftime('%Y-%m-%d'),
+            emp_hire_date=emp_data['Hire_Date'],
             emp_salary=emp_data['Salary']
         )
         producer.produce(
