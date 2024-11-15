@@ -56,11 +56,14 @@ def check_postgres_tables():
     except Exception as e:
         print(f"Error connecting to PostgreSQL: {e}")
 
+
 def run_producer():
     subprocess.run([sys.executable, 'producer.py'])
 
+
 def run_consumer():
     subprocess.run([sys.executable, 'consumer.py'])
+
 
 if __name__ == '__main__':
     try:
