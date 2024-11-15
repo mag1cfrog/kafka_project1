@@ -41,7 +41,9 @@ class SalaryConsumer(Consumer):
             'bootstrap.servers': f'{host}:{port}',
             'group.id': group_id,
             'enable.auto.commit': True,
-            'auto.offset.reset': 'earliest'}
+            'auto.offset.reset': 'earliest',
+            'security.protocol': 'PLAINTEXT' 
+        }
         super().__init__(self.conf)
         
         #self.consumer = Consumer(self.conf)

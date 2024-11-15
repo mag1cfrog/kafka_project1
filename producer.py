@@ -55,6 +55,7 @@ class salaryProducer(Producer):
             'linger.ms': 100,  # Wait up to 100 ms for more messages
             # Enable compression
             'compression.type': 'gzip',
+            'security.protocol': 'PLAINTEXT' 
         }
         super().__init__(producerConfig)
      
