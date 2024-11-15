@@ -81,10 +81,23 @@ class ConsumingMethods:
                 password="postgres")
             conn.autocommit = True
             cur = conn.cursor()
-            #your logic goes here
+            # Insert into department_employee
+            cur.execute("""
+                INSERT INTO department_employee (department, department_division, position_title, hire_date, salary)
+                VALUES (%s, %s, %s, %s, %s)
+                ON CONFLICT (department, department_division, position_title, hire_date) DO NOTHING;
+            """, (e.emp_dept, e.emp_division, e.emp_position, e.emp_hire_date, e.emp_salary))
+            # Update department_employee_salary
+            cur.execute("""
+                INSERT INTO department_employee_salary (department, total_salary)
+                VALUES (%s, %s)
+                ON CONFLICT (department) DO UPDATE
+                SET total_salary = department_employee_salary.total_salary + EXCLUDED.total_salary;
+            """, (e.emp_dept, e.emp_salary))
             cur.close()
+            conn.close()
         except Exception as err:
-            print(err)
+            print(f"Database error: {err}")
 
 if __name__ == '__main__':
     consumer = SalaryConsumer(group_id=?) #what is the group id here?
