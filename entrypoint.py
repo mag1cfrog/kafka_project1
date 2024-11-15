@@ -9,6 +9,11 @@ import psycopg2
 def start_docker_compose():
     subprocess.run(['docker-compose', 'up', '-d'])
 
+
+def stop_docker_compose():
+    subprocess.run(['docker-compose', 'down'])
+
+
 def check_postgres_tables():
     # Wait for PostgreSQL to be up
     time.sleep(10)
@@ -58,15 +63,22 @@ def run_consumer():
     subprocess.run([sys.executable, 'consumer.py'])
 
 if __name__ == '__main__':
-    start_docker_compose()
-    check_postgres_tables()
+    try:
+        start_docker_compose()
+        check_postgres_tables()
 
-    # Start producer and consumer processes
-    p1 = Process(target=run_producer)
-    p2 = Process(target=run_consumer)
+        # Start producer and consumer processes
+        p1 = Process(target=run_producer)
+        p2 = Process(target=run_consumer)
 
-    p1.start()
-    p2.start()
+        p1.start()
+        p2.start()
 
-    p1.join()
-    p2.join()
+        p1.join()
+        p2.join()
+
+    except KeyboardInterrupt:
+        print("Keyboard interrupt received.")
+    finally:
+        print("Stopping Docker containers...")
+        stop_docker_compose()
