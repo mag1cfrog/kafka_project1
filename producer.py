@@ -23,16 +23,14 @@ OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 THE SOFTWARE.
 """
 
-import csv
-import json
-import os
 
+import json
 
 from confluent_kafka import Producer
-from employee import Employee
-import confluent_kafka
-import pandas as pd
 from confluent_kafka.serialization import StringSerializer
+import pandas as pd
+
+from employee import Employee
 
 
 employee_topic_name = "bf_employee_salary"
