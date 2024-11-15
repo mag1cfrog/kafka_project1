@@ -98,7 +98,7 @@ class ConsumingMethods:
                 ON CONFLICT (department) DO UPDATE
                 SET total_salary = department_employee_salary.total_salary + EXCLUDED.total_salary;
             """, (e.emp_dept, e.emp_salary))
-            logging.info(f"Added salary for {e.emp_dept} department")
+            logging.info(f"Added salary for {e.emp_dept} department with salary {e.emp_salary}")
             cur.close()
             conn.close()
         except Exception as err:
