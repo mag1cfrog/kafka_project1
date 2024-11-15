@@ -32,7 +32,7 @@ from confluent_kafka import Consumer, KafkaError
 
 
 from employee import Employee
-from producer import employee_topic_name #you do not want to hard copy it
+from producer import EMPLOYEE_TOPIC #you do not want to hard copy it
 
 class SalaryConsumer(Consumer):
     #if connect without using a docker: host = localhost and port = 29092
@@ -108,4 +108,4 @@ logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(name)s - %(level
 
 if __name__ == '__main__':
     consumer = SalaryConsumer()
-    consumer.consume([employee_topic_name],ConsumingMethods.add_salary) 
+    consumer.consume([EMPLOYEE_TOPIC],ConsumingMethods.add_salary) 

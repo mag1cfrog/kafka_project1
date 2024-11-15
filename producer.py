@@ -26,6 +26,7 @@ THE SOFTWARE.
 
 import json
 import logging
+import sys
 
 from confluent_kafka import Producer
 from confluent_kafka.serialization import StringSerializer
@@ -34,11 +35,13 @@ import pandas as pd
 from employee import Employee
 
 
-employee_topic_name = "bf_employee_salary"
-csv_file = 'Employee_Salaries.csv'
-filtered_departments = {'ECC', 'CIT', 'EMS'}
-# You can adjust the batch_size_list for different testing scenarios
-batch_size_list = [10, 50, 100, 200, 500]
+EMPLOYEE_TOPIC = "bf_employee_salary"
+CSV_FILE = 'Employee_Salaries.csv'
+FILTERED_DEPARTMENTS = {'ECC', 'CIT', 'EMS'}
+BATCH_SIZE_LIST = [10, 50, 100, 200, 500]
+OPTIMAL_BATCH_SIZE = 200
+
+logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(name)s - %(levelname)s - %(message)s')
 
 #Can use the confluent_kafka.Producer class directly
 class salaryProducer(Producer):
@@ -66,26 +69,35 @@ def delivery_report(err, msg):
     if err is not None:
         logging.error(f"Delivery failed for Message: {msg.value()} - Error: {err}")
     else:
-        pass  # Message delivered successfully
+        logging.info(f"Message delivered to {msg.topic()} [{msg.partition()}] - Offset: {msg.offset()}")
     
     
-class DataHandler:
-    def __init__(self, file_path):
-        self.file_path = file_path
-
-    def get_filtered_employees(self):
-        df = pd.read_csv(self.file_path, header=None)
-        df.columns = ['Department', 'Division', 'Code', 'Position_Title', 'Status', 'Hire_Date', 'End_Date', 'Salary']
+def load_and_filter_employees(file_path):
+    """
+    Loads the CSV file and filters employee records based on department and hire date.
+    """
+    try:
+        df = pd.read_csv(file_path, header=None)
+        df.columns = [
+            'Department', 'Division', 'Code', 'Position_Title',
+            'Status', 'Hire_Date', 'End_Date', 'Salary'
+        ]
         # Filter departments
-        df = df[df['Department'].isin(filtered_departments)]
+        df = df[df['Department'].isin(FILTERED_DEPARTMENTS)]
+        # Convert 'Hire_Date' to datetime
+        df['Hire_Date'] = pd.to_datetime(df['Hire_Date'], format='%d-%b-%Y', errors='coerce')
         # Filter hire_date after 2010-01-01
-        df['Hire_Date'] = pd.to_datetime(df['Hire_Date'], format='%d-%b-%Y')
         df = df[df['Hire_Date'] > pd.Timestamp('2010-01-01')]
         # Round down salary
-        df['Salary'] = df['Salary'].apply(lambda x: int(float(x)))
-        # Convert 'Hire_Date' to string to ensure JSON serializability
+        df['Salary'] = df['Salary'].apply(lambda x: int(float(x)) if pd.notnull(x) else 0)
+        # Convert 'Hire_Date' to string for JSON serialization
         df['Hire_Date'] = df['Hire_Date'].dt.strftime('%Y-%m-%d')
+        # Drop rows with invalid Hire_Date
+        df = df.dropna(subset=['Hire_Date'])
         return df.to_dict(orient='records')
+    except Exception as e:
+        logging.error(f"Error processing CSV file: {e}")
+        sys.exit(1)
 
 
 def calculate_message_size(batch, encoder):
@@ -106,20 +118,21 @@ def send_batch(producer, batch, encoder):
             emp_salary=emp_data['Salary']
         )
         producer.produce(
-            employee_topic_name,
+            EMPLOYEE_TOPIC,
             key=encoder(emp.emp_dept),
             value=encoder(emp.to_json()),
             callback=delivery_report
         )
     producer.poll(0)
-    logging.info(f"Sent {len(batch)} messages with total size: {calculate_message_size(batch, encoder)} bytes.")
+    total_size = calculate_message_size(batch, encoder)
+    logging.info(f"Sent {len(batch)} messages with total size: {total_size / 1024:.2f} KB.")
 
 
 def test_batch_sizes(producer, employees, encoder):
     """
     Iterates through different batch sizes and prints the corresponding message sizes.
     """
-    for batch_size in batch_size_list:
+    for batch_size in BATCH_SIZE_LIST:
         total_size = 0
         num_batches = 0
         batch = []
@@ -138,22 +151,20 @@ def test_batch_sizes(producer, employees, encoder):
         average_size = total_size / num_batches if num_batches else 0
         logging.info(f"Batch Size: {batch_size} | Number of Batches: {num_batches} | Average Message Size: {average_size / 1024:.2f} KB")
 
-logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(name)s - %(levelname)s - %(message)s')
+
 
 if __name__ == '__main__':
     encoder = StringSerializer('utf-8')
-    handler = DataHandler(csv_file)
     producer = salaryProducer()
-    employees = handler.get_filtered_employees()
+    employees = load_and_filter_employees(CSV_FILE)
     
     # print("Testing different batch sizes for message sizes:")
     # test_batch_sizes(producer, employees, encoder)
-    optimal_batch_size = 200  # Replace with the batch size you find optimal
     
     batch = []
     for idx, emp_data in enumerate(employees, 1):
         batch.append(emp_data)
-        if idx % optimal_batch_size == 0:
+        if idx % OPTIMAL_BATCH_SIZE == 0:
             send_batch(producer, batch, encoder)
             batch = []
     
