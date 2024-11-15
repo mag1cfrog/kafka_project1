@@ -77,11 +77,22 @@ def wait_for_kafka(host, port, timeout=60):
 
 
 def run_producer():
-    subprocess.run([sys.executable, 'producer.py'])
+    try:
+        subprocess.run([sys.executable, 'producer.py'], check=True)
+    except subprocess.CalledProcessError as e:
+        logging.error(f"Producer encountered an error: {e}")
+    except KeyboardInterrupt:
+        logging.info("Producer process interrupted by user.")
 
 
 def run_consumer():
-    subprocess.run([sys.executable, 'consumer.py'])
+    try:
+        subprocess.run([sys.executable, 'consumer.py'], check=True)
+    except subprocess.CalledProcessError as e:
+        logging.error(f"Consumer encountered an error: {e}")
+    except KeyboardInterrupt:
+        logging.info("Consumer process interrupted by user.")
+
 
 
 if __name__ == '__main__':
@@ -110,3 +121,4 @@ if __name__ == '__main__':
     finally:
         logging.info("Stopping Docker containers...")
         stop_docker_compose()
+        logging.info("Docker containers stopped.")
