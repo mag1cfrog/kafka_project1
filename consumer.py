@@ -24,12 +24,13 @@ THE SOFTWARE.
 """
 
 import json
-import random
-import string
 import sys
+import logging
+
 import psycopg2
-from confluent_kafka import Consumer, KafkaError, KafkaException
-from confluent_kafka.serialization import StringDeserializer
+from confluent_kafka import Consumer, KafkaError
+
+
 from employee import Employee
 from producer import employee_topic_name #you do not want to hard copy it
 
@@ -60,11 +61,11 @@ class SalaryConsumer(Consumer):
                     continue
                 if msg.error():
                     if msg.error().code() != KafkaError._PARTITION_EOF:
-                        print(f"Consumer error: {msg.error()}")
+                        logging.error(f"Consumer error: {msg.error()}")
                     continue
                 processing_func(msg)
         except KeyboardInterrupt:
-            sys.stderr.write("Aborted by user\n")
+            logging.info("Aborted by user\n")
         finally:
             # Close down consumer to commit final offsets.
             self.close()
@@ -97,10 +98,13 @@ class ConsumingMethods:
                 ON CONFLICT (department) DO UPDATE
                 SET total_salary = department_employee_salary.total_salary + EXCLUDED.total_salary;
             """, (e.emp_dept, e.emp_salary))
+            logging.info(f"Added salary for {e.emp_dept} department")
             cur.close()
             conn.close()
         except Exception as err:
-            print(f"Database error: {err}")
+            logging.error(f"Database error: {err}")
+
+logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(name)s - %(levelname)s - %(message)s')
 
 if __name__ == '__main__':
     consumer = SalaryConsumer()

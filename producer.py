@@ -25,6 +25,7 @@ THE SOFTWARE.
 
 
 import json
+import logging
 
 from confluent_kafka import Producer
 from confluent_kafka.serialization import StringSerializer
@@ -63,7 +64,7 @@ class salaryProducer(Producer):
 def delivery_report(err, msg):
     """ Called once for each message produced to indicate delivery result. Triggered by poll() or flush(). """
     if err is not None:
-        print(f"Delivery failed for Message: {msg.value()} - Error: {err}")
+        logging.error(f"Delivery failed for Message: {msg.value()} - Error: {err}")
     else:
         pass  # Message delivered successfully
     
@@ -111,6 +112,7 @@ def send_batch(producer, batch, encoder):
             callback=delivery_report
         )
     producer.poll(0)
+    logging.info(f"Sent {len(batch)} messages with total size: {calculate_message_size(batch, encoder)} bytes.")
 
 
 def test_batch_sizes(producer, employees, encoder):
@@ -134,9 +136,9 @@ def test_batch_sizes(producer, employees, encoder):
             total_size += message_size
             num_batches += 1
         average_size = total_size / num_batches if num_batches else 0
-        print(f"Batch Size: {batch_size} | Number of Batches: {num_batches} | Average Message Size: {average_size / 1024:.2f} KB")
+        logging.info(f"Batch Size: {batch_size} | Number of Batches: {num_batches} | Average Message Size: {average_size / 1024:.2f} KB")
 
-
+logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(name)s - %(levelname)s - %(message)s')
 
 if __name__ == '__main__':
     encoder = StringSerializer('utf-8')
@@ -161,4 +163,4 @@ if __name__ == '__main__':
     
     producer.flush()
 
-    print("All messages have been sent.")
+    logging.info("All messages have been sent.")

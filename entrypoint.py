@@ -1,8 +1,9 @@
-import subprocess
-import time
+import logging
 from multiprocessing import Process
+import subprocess
 import sys
 import socket
+import time
 
 import psycopg2
 
@@ -55,23 +56,23 @@ def check_postgres_tables():
         cur.close()
         conn.close()
     except Exception as e:
-        print(f"Error connecting to PostgreSQL: {e}")
+        logging.error(f"Error connecting to PostgreSQL: {e}")
 
 
 def wait_for_kafka(host, port, timeout=60):
-    print(f"Waiting for Kafka to be available at {host}:{port}...")
+    logging.info(f"Waiting for Kafka to be available at {host}:{port}...")
     start_time = time.time()
     while True:
         try:
             # Attempt to create a socket connection
             with socket.create_connection((host, port), timeout=5):
-                print("Kafka is ready to accept connections.")
+                logging.info("Kafka is ready to accept connections.")
                 break
         except (socket.timeout, ConnectionRefusedError):
             if time.time() - start_time > timeout:
-                print("Timeout reached. Kafka is not available.")
+                logging.error("Timeout reached. Kafka is not available.")
                 sys.exit(1)
-            print("Kafka not ready yet. Retrying in 2 seconds...")
+            logging.info("Kafka not ready yet. Retrying in 2 seconds...")
             time.sleep(2)
 
 
@@ -85,6 +86,9 @@ def run_consumer():
 
 if __name__ == '__main__':
     try:
+        # Set up logging with detailed record of which script each log message comes from
+        logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(name)s - %(levelname)s - %(message)s')
+
         start_docker_compose()
         check_postgres_tables()
 
@@ -102,7 +106,7 @@ if __name__ == '__main__':
         p2.join()
 
     except KeyboardInterrupt:
-        print("Keyboard interrupt received.")
+        logging.info("Keyboard interrupt received.")
     finally:
-        print("Stopping Docker containers...")
+        logging.info("Stopping Docker containers...")
         stop_docker_compose()
