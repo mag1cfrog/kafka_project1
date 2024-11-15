@@ -36,11 +36,12 @@ from producer import employee_topic_name #you do not want to hard copy it
 class SalaryConsumer(Consumer):
     #if connect without using a docker: host = localhost and port = 29092
     #if connect within a docker container, host = 'kafka' or whatever name used for the kafka container, port = 9092
-    def __init__(self, host: str = "localhost", port: str = "29092", group_id: str = ''):
-        self.conf = {'bootstrap.servers': f'{host}:{port}',
-                     'group.id': group_id,
-                     'enable.auto.commit': True,
-                     'auto.offset.reset': 'earliest'}
+    def __init__(self, host: str = "localhost", port: str = "29092", group_id: str = 'salary_group'):
+        self.conf = {
+            'bootstrap.servers': f'{host}:{port}',
+            'group.id': group_id,
+            'enable.auto.commit': True,
+            'auto.offset.reset': 'earliest'}
         super().__init__(self.conf)
         
         #self.consumer = Consumer(self.conf)
@@ -53,15 +54,15 @@ class SalaryConsumer(Consumer):
             self.subscribe(topics)
             while self.keep_runnning:
                 msg = self.poll(timeout=1.0)
-
-                #can implement other logics for msg
-
-                if not msg:
-                    pass 
-                elif msg.error():
-                    pass
-                else:
-                    processing_func(msg)
+                if msg is None:
+                    continue
+                if msg.error():
+                    if msg.error().code() != KafkaError._PARTITION_EOF:
+                        print(f"Consumer error: {msg.error()}")
+                    continue
+                processing_func(msg)
+        except KeyboardInterrupt:
+            sys.stderr.write("Aborted by user\n")
         finally:
             # Close down consumer to commit final offsets.
             self.close()
@@ -74,7 +75,7 @@ class ConsumingMethods:
         try:
             conn = psycopg2.connect(
                 #use localhost if not run in Docker
-                host="0.0.0.0",
+                host="localhost",
                 database="postgres",
                 user="postgres",
                 port = '5432',
@@ -100,5 +101,5 @@ class ConsumingMethods:
             print(f"Database error: {err}")
 
 if __name__ == '__main__':
-    consumer = SalaryConsumer(group_id=?) #what is the group id here?
-    consumer.consume([?],ConsumingMethods.add_salary) #what is the topic here?
+    consumer = SalaryConsumer()
+    consumer.consume([employee_topic_name],ConsumingMethods.add_salary) 
