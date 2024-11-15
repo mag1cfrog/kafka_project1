@@ -2,6 +2,7 @@ import subprocess
 import time
 from multiprocessing import Process
 import sys
+import socket
 
 import psycopg2
 
@@ -57,6 +58,23 @@ def check_postgres_tables():
         print(f"Error connecting to PostgreSQL: {e}")
 
 
+def wait_for_kafka(host, port, timeout=60):
+    print(f"Waiting for Kafka to be available at {host}:{port}...")
+    start_time = time.time()
+    while True:
+        try:
+            # Attempt to create a socket connection
+            with socket.create_connection((host, port), timeout=5):
+                print("Kafka is ready to accept connections.")
+                break
+        except (socket.timeout, ConnectionRefusedError):
+            if time.time() - start_time > timeout:
+                print("Timeout reached. Kafka is not available.")
+                sys.exit(1)
+            print("Kafka not ready yet. Retrying in 2 seconds...")
+            time.sleep(2)
+
+
 def run_producer():
     subprocess.run([sys.executable, 'producer.py'])
 
@@ -69,6 +87,9 @@ if __name__ == '__main__':
     try:
         start_docker_compose()
         check_postgres_tables()
+
+        # Wait until Kafka is ready
+        wait_for_kafka('localhost', 29092, timeout=120)
 
         # Start producer and consumer processes
         p1 = Process(target=run_producer)
