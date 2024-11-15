@@ -30,7 +30,7 @@ import sys
 
 from confluent_kafka import Producer
 from confluent_kafka.serialization import StringSerializer
-import pandas as pd
+import polars as pl
 
 from employee import Employee
 
@@ -74,29 +74,61 @@ def delivery_report(err, msg):
     
 def load_and_filter_employees(file_path):
     """
-    Loads the CSV file and filters employee records based on department and hire date.
+    Loads the CSV file using Polars' lazy API and filters employee records based on department and hire date.
+    Utilizes lazy execution to handle large files efficiently.
     """
     try:
-        df = pd.read_csv(file_path, header=None)
-        df.columns = [
-            'Department', 'Division', 'Code', 'Position_Title',
-            'Status', 'Hire_Date', 'End_Date', 'Salary'
-        ]
-        # Filter departments
-        df = df[df['Department'].isin(FILTERED_DEPARTMENTS)]
-        # Convert 'Hire_Date' to datetime
-        df['Hire_Date'] = pd.to_datetime(df['Hire_Date'], format='%d-%b-%Y', errors='coerce')
-        # Filter hire_date after 2010-01-01
-        df = df[df['Hire_Date'] > pd.Timestamp('2010-01-01')]
-        # Round down salary
-        df['Salary'] = df['Salary'].apply(lambda x: int(float(x)) if pd.notnull(x) else 0)
-        # Convert 'Hire_Date' to string for JSON serialization
-        df['Hire_Date'] = df['Hire_Date'].dt.strftime('%Y-%m-%d')
-        # Drop rows with invalid Hire_Date
-        df = df.dropna(subset=['Hire_Date'])
-        return df.to_dict(orient='records')
+        # Define schema for better performance
+        dtypes = {
+            'Department': pl.Utf8,
+            'Department-Division': pl.Utf8,
+            'PCN': pl.Utf8,
+            'Position Title': pl.Utf8,
+            'FLSA Status': pl.Utf8,
+            'Initial Hire Date': pl.Utf8,
+            'Date in Title': pl.Utf8,
+            'Salary': pl.Float64
+        }
+
+        # Create a LazyFrame
+        lf = (
+            pl.scan_csv(file_path, has_header=True, schema_overrides=dtypes)
+            .rename({
+                'Department-Division': 'Division',
+                'Position Title': 'Position_Title',
+                'FLSA Status': 'Status',
+                'Initial Hire Date': 'Hire_Date',
+                'Date in Title': 'End_Date'
+            })
+            # Filter departments
+            .filter(pl.col('Department').is_in(FILTERED_DEPARTMENTS))
+            # Convert 'Hire_Date' to datetime, coercing errors to null
+            .with_columns([
+                pl.col('Hire_Date').str.strptime(pl.Date, format='%d-%b-%Y', strict=False).alias('Hire_Date')
+            ])
+            # Filter hire_date after 2010-01-01
+            .filter(pl.col('Hire_Date') > pl.date(2010, 1, 1))
+            # Round down salary and handle nulls
+            .with_columns([
+                pl.when(pl.col('Salary').is_not_null())
+                .then(pl.col('Salary').cast(pl.Int64))
+                .otherwise(0)
+                .alias('Salary')
+            ])
+            # Convert 'Hire_Date' to string for JSON serialization
+            .with_columns([
+                pl.col('Hire_Date').dt.strftime('%Y-%m-%d').alias('Hire_Date')
+            ])
+            # Drop rows with invalid Hire_Date
+            .drop_nulls(subset=['Hire_Date'])
+        )
+
+        # Collect the LazyFrame into a DataFrame
+        df = lf.collect()
+        # Convert DataFrame to list of dictionaries
+        return df.to_dicts()
     except Exception as e:
-        logging.error(f"Error processing CSV file: {e}")
+        logging.error(f"Error processing CSV file with Polars: {e}")
         sys.exit(1)
 
 
